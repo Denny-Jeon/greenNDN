@@ -19,14 +19,38 @@ TIME = 75
 RATIO = 0.2
 
 
+
 import csv
 import networkx as nx
 import fnss
 import copy
+import os
+
+
+
+
 
 
 def calculate_greenness (node_id, time):
 
+    filename = os.getcwd() + '/weather_data/node_' + str(node_id) + '.csv'
+
+    with open (filename, mode = 'r') as f:
+        reader = csv.reader(f)
+        for row in reader:
+            if row[0] == str(time+1):
+                solar_available = float (row[1])
+                wind_available  = float (row[2])
+                g = (wind_available+CO2_SOLAR*solar_available)/PC
+                # print 'Available renewable energy: Solar %.2f, Wind %.2f' %(solar_available, wind_available)
+                # print 'Greenness of Node (%d) = %.2f' %(node_id, g)
+                f.close()
+                return g
+    f.close()
+    
+
+
+    '''
     if node_id == 0:
         with open ('/home/skjo/python/NSF/weather_data/node_0.csv', mode = 'r') as f:
             reader = csv.reader(f)
@@ -221,6 +245,7 @@ def calculate_greenness (node_id, time):
                     # print 'Greenness of Node (%d) = %.2f' %(node_id, g)
                     return g
         f.close()
+    '''
 
 
 def generate_graph ():

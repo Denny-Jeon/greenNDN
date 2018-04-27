@@ -9,6 +9,12 @@ from icarus.util import inheritdoc, path_links
 
 from .base import Strategy
 
+import copy
+
+
+from .nsf import get_green_info, set_green_path, get_green_path
+
+
 __all__ = [
        'Partition',
        'Edge',
@@ -18,6 +24,7 @@ __all__ = [
        'CacheLessForMore',
        'RandomBernoulli',
        'RandomChoice',
+       'Green',
            ]
 
 
@@ -411,5 +418,84 @@ class RandomChoice(Strategy):
         for u, v in path_links(path):
             self.controller.forward_content_hop(u, v)
             if v == designated_cache:
+                self.controller.put_content(v)
+        self.controller.end_session()
+
+
+
+
+''' Add Green strategy'''
+@register_strategy('GREEN')
+class Green(Strategy):
+    """Green content caching strategy.
+    Basic skeleton is from LCE strategy
+    In this strategy a copy of a content is replicated at any cache on the
+    path between serving node and receiver.
+    """
+
+    @inheritdoc(Strategy)
+    def __init__(self, view, controller, **kwargs):
+        super(Green, self).__init__(view, controller)
+
+    @inheritdoc(Strategy)
+    def process_event(self, time, receiver, content, log):
+        # get all required data
+        source = self.view.content_source(content)
+        # source = [21]
+        # TODO : consider 3 kind of paths (green path, associated green path, shortest path)
+        # path = [30, 4, 5, 13, 11, 21]
+
+        (green_nodes, associated_green_nodes, green_path_dict, associated_green_path_dict) = get_green_info()
+        (green_path, associate_green_path) = set_green_path(green_path_dict,
+                                                            associated_green_path_dict,
+                                                            self.view.model.shortest_path)
+
+
+        # print green_nodes
+        # print associate_green_path
+
+        # green_nodes_list, neighbor_node_list
+        # path = [4, 5, 13, 11, 21]
+
+
+        if receiver in green_nodes:
+            print 'green'
+            path = get_green_path(green_path, receiver, source)
+            # path = self.view.shortest_path(receiver, source)
+        elif receiver in associated_green_nodes:
+            print 'associated'
+            # path = self.view.associated_green_path(receiver, source)
+            path = get_green_path(associate_green_path, receiver, source)
+        else:
+            print 'shortest'
+            path = self.view.shortest_path(receiver, source)
+
+
+        print path
+
+
+        # Route requests to original source and queries caches on the path
+        self.controller.start_session(time, receiver, content, log)
+        for u, v in path_links(path):
+            self.controller.forward_request_hop(u, v)
+            # print 'forward_request_hop', u, v
+            if self.view.has_cache(v):
+                if self.controller.get_content(v):
+                    serving_node = v
+                    # print 'serving_node', v
+                    break
+            # No cache hits, get content from source
+            self.controller.get_content(v)
+            serving_node = v
+        # Return content
+
+        path = list(reversed(self.view.shortest_path(receiver, serving_node)))
+        print path
+
+
+        for u, v in path_links(path):
+            self.controller.forward_content_hop(u, v)
+            if self.view.has_cache(v):
+                # insert content
                 self.controller.put_content(v)
         self.controller.end_session()
